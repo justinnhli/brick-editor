@@ -150,7 +150,12 @@ function onPointBackspace() {
         if (cursorAtEndOfBlock(ast, cursor, BLOCK_DELETE_TYPES)) {
             var node = findClosestDeletableBlock(ast, cursor);
             if (highlighted) {
-                setValue(deleteBlock(ast, node));
+                var start = node.loc.start;
+                var end = node.loc.end;
+                start.lineNumber = start.line;
+                end.lineNumber = end.line;
+                setValue(deleteRange(buffer, start, end));
+                setCursor(start);
                 unhighlight();
             } else {
                 highlight(node.loc.start.line, node.loc.start.column, node.loc.end.line, node.loc.end.column);
@@ -194,7 +199,12 @@ function onPointDelete() {
         if (cursorAtStartOfBlock(ast, cursor)) {
             var node = findClosestDeletableBlock(ast, cursor);
             if (highlighted) {
-                setValue(deleteBlock(ast, node));
+                var start = node.loc.start;
+                var end = node.loc.end;
+                start.lineNumber = start.line;
+                end.lineNumber = end.line;
+                setValue(deleteRange(buffer, start, end));
+                setCursor(start);
                 unhighlight();
             } else {
                 highlight(node.loc.start.line, node.loc.start.column, node.loc.end.line, node.loc.end.column);
@@ -595,21 +605,27 @@ function deleteSelected(ast, selection) {
 }
 
 /**
- * Delete a node
+ * Delete text between two Cursors
  *
- * @param {AST} ast - The parsed text.
- * @param {node} node - The node to delete.
- * @returns {string} Text with block removed
+ * @param {string} text - The text to work with.
+ * @param {Cursor} start - The start Cursors.
+ * @param {Cursor} end - The end Cursors.
+ * @returns {string} - The text without the selected part.
  */
-function deleteBlock(ast, node) {
-    estraverse.replace(ast.program, {
-        leave: function (currentNode) {
-            if (currentNode === node) {
-                this.remove();
-            }
+function deleteRange(text, start, end) {
+    var result = [];
+    var lines = text.split("\n");
+    for (var line_num = 1; line_num <= lines.length; line_num++) {
+        var line = lines[line_num - 1];
+        if (line_num < start.lineNumber || line_num > end.lineNumber) {
+            result.push(line);
+        } else if (line_num === start.lineNumber) {
+            result[result.length - 1] += line.substring(0, start.column);
+        } else if (line_num === end.lineNumber) {
+            result.push(line.substring(end.column));
         }
-    });
-    return recast.print(ast).code;
+    }
+    return result.join("\n");
 }
 
 /**
